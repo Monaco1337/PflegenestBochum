@@ -1,0 +1,129 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* PflegeNest brand navy — matched to logo #1B3F5F */
+    --primary: 207 56% 24%;
+    --primary-foreground: 210 40% 98%;
+    --brand-sky: 210 28% 66%;
+
+    --secondary: 215 30% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 215 25% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 200 100% 95%;
+    --accent-foreground: 215 90% 36%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 98%;
+
+    --success: 152 60% 38%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 47% 11%;
+
+    --border: 215 20% 90%;
+    --input: 215 20% 90%;
+    --ring: 215 90% 36%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 47% 10%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 10%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 205 100% 60%;
+    --primary-foreground: 222 47% 11%;
+
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 15%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 217 33% 17%;
+    --accent-foreground: 205 100% 70%;
+
+    --destructive: 0 70% 56%;
+    --destructive-foreground: 0 0% 98%;
+
+    --success: 152 60% 50%;
+    --success-foreground: 222 47% 7%;
+
+    --warning: 38 92% 60%;
+    --warning-foreground: 222 47% 11%;
+
+    --border: 217 33% 18%;
+    --input: 217 33% 18%;
+    --ring: 205 100% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
+  }
+  html {
+    @apply scroll-smooth;
+  }
+  ::selection {
+    @apply bg-primary/20 text-primary;
+  }
+
+  /* Visible focus ring everywhere */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-card/70 backdrop-blur-xl backdrop-saturate-150 border-border/60;
+  }
+  .scroll-fade-r {
+    mask-image: linear-gradient(to right, black 92%, transparent 100%);
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+  .gradient-text {
+    @apply bg-gradient-to-br from-primary via-primary to-accent-foreground bg-clip-text text-transparent;
+  }
+  .skeleton {
+    @apply relative overflow-hidden bg-muted;
+  }
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-full animate-shimmer;
+    background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  }
+  .grid-dots {
+    background-image: radial-gradient(circle, hsl(var(--muted-foreground) / 0.15) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+}

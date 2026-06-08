@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 96" fill="none" aria-hidden="true">
+  <defs>
+    <style>
+      .pn-navy { fill: #1B3F5F; stroke: #1B3F5F; }
+      .pn-sky { fill: #8FA8C4; stroke: #1B3F5F; }
+    </style>
+  </defs>
+  <!-- curved base -->
+  <path class="pn-navy" fill="none" stroke-width="2.2" stroke-linecap="round" d="M14 82 Q60 90 106 82" />
+  <!-- left hand -->
+  <path class="pn-sky" stroke-width="2.2" stroke-linejoin="round" d="M18 78 C14 66 16 50 28 42 C34 38 40 40 42 46 C38 54 34 64 36 74 C32 78 24 80 18 78 Z" />
+  <!-- right hand -->
+  <path class="pn-sky" stroke-width="2.2" stroke-linejoin="round" d="M102 78 C106 66 104 50 92 42 C86 38 80 40 78 46 C82 54 86 64 84 74 C88 78 96 80 102 78 Z" />
+  <!-- house body -->
+  <rect class="pn-navy" fill="none" stroke-width="2.2" x="44" y="44" width="32" height="28" rx="0.5" />
+  <!-- roof -->
+  <path class="pn-navy" fill="none" stroke-width="2.2" stroke-linejoin="round" d="M38 44 L60 26 L82 44" />
+  <!-- window panes -->
+  <rect class="pn-navy" x="50" y="50" width="8" height="8" />
+  <rect class="pn-navy" x="62" y="50" width="8" height="8" />
+  <rect class="pn-navy" x="50" y="62" width="8" height="8" />
+  <rect class="pn-navy" x="62" y="62" width="8" height="8" />
+</svg>

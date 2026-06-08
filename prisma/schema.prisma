@@ -1,0 +1,818 @@
+// =============================================================================
+// PflegeNest OS - Domain Schema
+// =============================================================================
+// Datasource is parameterized via DATABASE_URL. The system also supports an
+// in-memory fallback for development; see src/core/repositories/index.ts.
+// =============================================================================
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+// Identity & Access
+// -----------------------------------------------------------------------------
+
+enum UserRole {
+  SUPER_ADMIN
+  GESCHAEFTSFUEHRUNG
+  PFLEGEDIENSTLEITUNG
+  VERWALTUNG
+  RECRUITING
+  MITARBEITER
+  ANGEHOERIGE
+  PATIENT
+}
+
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  passwordHash  String?
+  name          String
+  role          UserRole   @default(VERWALTUNG)
+  permissions   String[]   @default([])
+  avatarUrl     String?
+  active        Boolean    @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  notifications Notification[]
+  auditLogs     AuditLog[]
+  tasks         Task[]      @relation("AssignedTasks")
+  createdTasks  Task[]      @relation("CreatedTasks")
+  messages      Message[]
+
+  @@index([role, active])
+}
+
+// -----------------------------------------------------------------------------
+// CRM: Leads, Contacts, Partners
+// -----------------------------------------------------------------------------
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  ANAMNESIS_SCHEDULED
+  ANAMNESIS_DONE
+  WON
+  LOST
+}
+
+enum LeadSource {
+  WEBSITE_CONTACT
+  WEBSITE_CALLBACK
+  PFLEGEGRAD_WIZARD
+  ANAMNESIS_WIZARD
+  CAREER
+  PHONE
+  REFERRAL
+  OTHER
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model Lead {
+  id           String       @id @default(cuid())
+  firstName    String
+  lastName     String
+  email        String?
+  phone        String?
+  zip          String?
+  city         String?
+  status       LeadStatus   @default(NEW)
+  source       LeadSource
+  priority     Priority     @default(MEDIUM)
+  message      String?      @db.Text
+  consentGiven Boolean      @default(false)
+  patientId    String?
+  patient      Patient?     @relation(fields: [patientId], references: [id])
+  assigneeId   String?
+  metadata     Json?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  pflegegradAssessment PflegegradAssessment?
+  anamnesis            Anamnesis?
+  tasks                Task[]
+  notes                Note[]
+
+  @@index([status, createdAt])
+  @@index([source])
+}
+
+// -----------------------------------------------------------------------------
+// Patients & Relatives
+// -----------------------------------------------------------------------------
+
+enum CareLevel {
+  NONE
+  PG1
+  PG2
+  PG3
+  PG4
+  PG5
+}
+
+enum PatientStatus {
+  PROSPECT
+  ACTIVE
+  PAUSED
+  DISCHARGED
+  DECEASED
+}
+
+model Patient {
+  id              String        @id @default(cuid())
+  firstName       String
+  lastName        String
+  dateOfBirth     DateTime?
+  gender          String?
+  street          String?
+  zip             String?
+  city            String?
+  phone           String?
+  email           String?
+  status          PatientStatus @default(PROSPECT)
+  careLevel       CareLevel     @default(NONE)
+  insuranceId     String?
+  insurance       InsuranceProvider? @relation(fields: [insuranceId], references: [id])
+  primaryDoctorId String?
+  primaryDoctor   Doctor?       @relation(fields: [primaryDoctorId], references: [id])
+  hospitalId      String?
+  hospital        Hospital?     @relation(fields: [hospitalId], references: [id])
+  notes           String?       @db.Text
+  riskFlags       String[]      @default([])
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  leads        Lead[]
+  relatives    Relative[]
+  documents    Document[]
+  appointments Appointment[]
+  tourStops    TourStop[]
+  tasks        Task[]
+  notesList    Note[]
+  anamneses    Anamnesis[]
+  riskSignals  RiskSignal[]
+
+  @@index([status, careLevel])
+  @@index([lastName, firstName])
+}
+
+enum RelationKind {
+  CHILD
+  SPOUSE
+  PARENT
+  SIBLING
+  GUARDIAN
+  CONTACT
+  OTHER
+}
+
+model Relative {
+  id             String       @id @default(cuid())
+  firstName      String
+  lastName       String
+  relation       RelationKind @default(CONTACT)
+  phone          String?
+  email          String?
+  isPrimary      Boolean      @default(false)
+  hasPortalAccess Boolean     @default(false)
+  patientId      String
+  patient        Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([patientId])
+}
+
+model InsuranceProvider {
+  id       String @id @default(cuid())
+  name     String
+  code     String? @unique
+  phone    String?
+  email    String?
+  address  String?
+  patients Patient[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Doctor {
+  id        String   @id @default(cuid())
+  firstName String
+  lastName  String
+  specialty String?
+  phone     String?
+  email     String?
+  address   String?
+  patients  Patient[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Hospital {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  patients  Patient[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// -----------------------------------------------------------------------------
+// Applicants & Employees
+// -----------------------------------------------------------------------------
+
+enum ApplicantStage {
+  NEW
+  PHONE_INTERVIEW
+  ONSITE_INTERVIEW
+  TRIAL_DAY
+  HIRED
+  TALENT_POOL
+  REJECTED
+}
+
+model Applicant {
+  id           String         @id @default(cuid())
+  firstName    String
+  lastName     String
+  email        String
+  phone        String?
+  city         String?
+  position     String
+  stage        ApplicantStage @default(NEW)
+  score        Int            @default(0)
+  source       String?
+  cvUrl        String?
+  coverLetter  String?        @db.Text
+  motivation   String?        @db.Text
+  qualifications String[]     @default([])
+  consentGiven Boolean        @default(false)
+  rejectedReason String?
+  hiredEmployeeId String?     @unique
+  hiredEmployee Employee?     @relation(fields: [hiredEmployeeId], references: [id])
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  documents Document[]
+  tasks     Task[]
+  notes     Note[]
+
+  @@index([stage, score])
+  @@index([createdAt])
+}
+
+enum EmploymentStatus {
+  ACTIVE
+  ONBOARDING
+  ON_LEAVE
+  SICK
+  TERMINATED
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  MINIJOB
+  TRAINEE
+  CONTRACTOR
+}
+
+model Employee {
+  id              String           @id @default(cuid())
+  firstName       String
+  lastName        String
+  email           String           @unique
+  phone           String?
+  position        String
+  qualification   String?
+  employmentType  EmploymentType   @default(FULL_TIME)
+  status          EmploymentStatus @default(ACTIVE)
+  weeklyHours     Int              @default(40)
+  hireDate        DateTime?
+  driverLicense   Boolean          @default(false)
+  vehicle         Boolean          @default(false)
+  skills          String[]         @default([])
+  certifications  String[]         @default([])
+  vacationDays    Int              @default(28)
+  vacationTakenDays Int            @default(0)
+  overtimeHours   Int              @default(0)
+  active          Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  applicant     Applicant?
+  shifts        Shift[]
+  tours         Tour[]
+  documents     Document[]
+  tasks         Task[]
+  sickReports   SickReport[]
+  vacations     VacationRequest[]
+
+  @@index([status, active])
+}
+
+model SickReport {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  startDate   DateTime
+  endDate     DateTime?
+  note        String?
+  createdAt   DateTime @default(now())
+
+  @@index([employeeId, startDate])
+}
+
+enum VacationStatus {
+  PENDING
+  APPROVED
+  DECLINED
+}
+
+model VacationRequest {
+  id         String         @id @default(cuid())
+  employeeId String
+  employee   Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  startDate  DateTime
+  endDate    DateTime
+  status     VacationStatus @default(PENDING)
+  note       String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+}
+
+// -----------------------------------------------------------------------------
+// Documents
+// -----------------------------------------------------------------------------
+
+enum DocumentCategory {
+  PATIENT_RECORD
+  MEDICATION_PLAN
+  DOCTOR_REPORT
+  HOSPITAL_REPORT
+  PFLEGEGUTACHTEN
+  APPLICATION
+  EMPLOYEE_CONTRACT
+  QUALIFICATION
+  INTERNAL
+  CONSENT
+  OTHER
+}
+
+model Document {
+  id          String           @id @default(cuid())
+  name        String
+  category    DocumentCategory @default(OTHER)
+  url         String
+  size        Int              @default(0)
+  mimeType    String?
+  uploadedBy  String?
+  patientId   String?
+  patient     Patient?         @relation(fields: [patientId], references: [id])
+  applicantId String?
+  applicant   Applicant?       @relation(fields: [applicantId], references: [id])
+  employeeId  String?
+  employee    Employee?        @relation(fields: [employeeId], references: [id])
+  expiresAt   DateTime?
+  archivedAt  DateTime?
+  metadata    Json?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  versions DocumentVersion[]
+
+  @@index([category, createdAt])
+  @@index([expiresAt])
+}
+
+model DocumentVersion {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  version    Int
+  url        String
+  uploadedBy String?
+  createdAt  DateTime @default(now())
+
+  @@unique([documentId, version])
+}
+
+// -----------------------------------------------------------------------------
+// Tasks & Tickets
+// -----------------------------------------------------------------------------
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING
+  DONE
+  ESCALATED
+}
+
+enum TaskKind {
+  TASK
+  TICKET
+  CALLBACK
+  REMINDER
+}
+
+model Task {
+  id          String      @id @default(cuid())
+  title       String
+  description String?     @db.Text
+  status      TaskStatus  @default(OPEN)
+  kind        TaskKind    @default(TASK)
+  priority    Priority    @default(MEDIUM)
+  dueDate     DateTime?
+  followUpAt  DateTime?
+  assigneeId  String?
+  assignee    User?       @relation("AssignedTasks", fields: [assigneeId], references: [id])
+  createdById String?
+  createdBy   User?       @relation("CreatedTasks", fields: [createdById], references: [id])
+  patientId   String?
+  patient     Patient?    @relation(fields: [patientId], references: [id])
+  applicantId String?
+  applicant   Applicant?  @relation(fields: [applicantId], references: [id])
+  employeeId  String?
+  employee    Employee?   @relation(fields: [employeeId], references: [id])
+  leadId      String?
+  lead        Lead?       @relation(fields: [leadId], references: [id])
+  tags        String[]    @default([])
+  metadata    Json?
+  completedAt DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  comments TaskComment[]
+
+  @@index([status, priority, dueDate])
+  @@index([assigneeId, status])
+}
+
+model TaskComment {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId  String?
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+}
+
+// -----------------------------------------------------------------------------
+// Scheduling: Shifts, Tours, Routes, Appointments
+// -----------------------------------------------------------------------------
+
+enum ShiftType {
+  EARLY
+  LATE
+  NIGHT
+  DAY
+  ON_CALL
+}
+
+enum ShiftStatus {
+  PLANNED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  ABSENT
+  SUBSTITUTE_NEEDED
+}
+
+model Shift {
+  id         String      @id @default(cuid())
+  employeeId String
+  employee   Employee    @relation(fields: [employeeId], references: [id])
+  date       DateTime
+  startTime  String
+  endTime    String
+  type       ShiftType   @default(DAY)
+  status     ShiftStatus @default(PLANNED)
+  tourId     String?
+  tour       Tour?       @relation(fields: [tourId], references: [id])
+  note       String?
+  conflicts  String[]    @default([])
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([date, employeeId])
+  @@index([status])
+}
+
+enum TourStatus {
+  DRAFT
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Tour {
+  id         String     @id @default(cuid())
+  name       String
+  date       DateTime
+  employeeId String?
+  employee   Employee?  @relation(fields: [employeeId], references: [id])
+  startTime  String
+  endTime    String?
+  status     TourStatus @default(DRAFT)
+  conflicts  String[]   @default([])
+  notes      String?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  stops  TourStop[]
+  shifts Shift[]
+
+  @@index([date, status])
+}
+
+model TourStop {
+  id        String   @id @default(cuid())
+  tourId    String
+  tour      Tour     @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  patientId String
+  patient   Patient  @relation(fields: [patientId], references: [id])
+  order     Int
+  plannedAt String
+  durationMinutes Int @default(30)
+  serviceType String?
+  notes     String?
+  completedAt DateTime?
+
+  @@unique([tourId, order])
+  @@index([patientId])
+}
+
+model Appointment {
+  id        String   @id @default(cuid())
+  patientId String
+  patient   Patient  @relation(fields: [patientId], references: [id])
+  type      String
+  startAt   DateTime
+  endAt     DateTime
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([patientId, startAt])
+}
+
+// -----------------------------------------------------------------------------
+// Communications
+// -----------------------------------------------------------------------------
+
+enum MessageChannel {
+  EMAIL
+  SMS
+  PHONE
+  PORTAL
+  INTERNAL
+}
+
+model Message {
+  id         String         @id @default(cuid())
+  channel    MessageChannel
+  fromUserId String?
+  fromUser   User?          @relation(fields: [fromUserId], references: [id])
+  toType     String
+  toId       String?
+  subject    String?
+  body       String         @db.Text
+  meta       Json?
+  createdAt  DateTime       @default(now())
+
+  @@index([toType, toId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String?
+  type      String
+  href      String?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, readAt])
+}
+
+model Note {
+  id          String  @id @default(cuid())
+  body        String  @db.Text
+  authorId    String?
+  patientId   String?
+  patient     Patient? @relation(fields: [patientId], references: [id])
+  leadId      String?
+  lead        Lead?    @relation(fields: [leadId], references: [id])
+  applicantId String?
+  applicant   Applicant? @relation(fields: [applicantId], references: [id])
+  pinned      Boolean @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([patientId])
+  @@index([leadId])
+  @@index([applicantId])
+}
+
+// -----------------------------------------------------------------------------
+// Anamnesis & Pflegegrad
+// -----------------------------------------------------------------------------
+
+model Anamnesis {
+  id              String   @id @default(cuid())
+  leadId          String?  @unique
+  lead            Lead?    @relation(fields: [leadId], references: [id])
+  patientId       String?
+  patient         Patient? @relation(fields: [patientId], references: [id])
+  data            Json
+  consentGiven    Boolean  @default(false)
+  signature       String?
+  submittedAt     DateTime @default(now())
+  reviewedAt      DateTime?
+  reviewedById    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([submittedAt])
+}
+
+model PflegegradAssessment {
+  id            String    @id @default(cuid())
+  leadId        String?   @unique
+  lead          Lead?     @relation(fields: [leadId], references: [id])
+  answers       Json
+  totalScore    Int
+  estimatedLevel CareLevel
+  notes         String?   @db.Text
+  pdfUrl        String?
+  createdAt     DateTime  @default(now())
+
+  @@index([createdAt])
+  @@index([estimatedLevel])
+}
+
+// -----------------------------------------------------------------------------
+// Workflow Engine
+// -----------------------------------------------------------------------------
+
+enum WorkflowTriggerType {
+  EVENT
+  SCHEDULE
+  MANUAL
+}
+
+model Workflow {
+  id          String              @id @default(cuid())
+  name        String
+  description String?
+  triggerType WorkflowTriggerType @default(EVENT)
+  triggerKey  String
+  steps       Json
+  enabled     Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  runs WorkflowRun[]
+
+  @@index([triggerKey, enabled])
+}
+
+enum WorkflowRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+  PARTIAL
+}
+
+model WorkflowRun {
+  id         String            @id @default(cuid())
+  workflowId String
+  workflow   Workflow          @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  status     WorkflowRunStatus @default(RUNNING)
+  trigger    Json
+  output     Json?
+  error      String?
+  startedAt  DateTime          @default(now())
+  finishedAt DateTime?
+
+  @@index([workflowId, startedAt])
+}
+
+// -----------------------------------------------------------------------------
+// Audit, Events, Analytics, AI, Twin, Consent
+// -----------------------------------------------------------------------------
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  actor     User?    @relation(fields: [actorId], references: [id])
+  action    String
+  entity    String
+  entityId  String?
+  before    Json?
+  after     Json?
+  source    String?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId, createdAt])
+  @@index([actorId, createdAt])
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  name      String
+  sessionId String?
+  userId    String?
+  path      String?
+  referrer  String?
+  utm       Json?
+  device    String?
+  props     Json?
+  createdAt DateTime @default(now())
+
+  @@index([name, createdAt])
+}
+
+model ConsentRecord {
+  id        String   @id @default(cuid())
+  subject   String
+  subjectId String?
+  scope     String
+  granted   Boolean
+  text      String   @db.Text
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([subject, subjectId])
+}
+
+enum RecommendationSeverity {
+  INFO
+  ATTENTION
+  RISK
+  CRITICAL
+}
+
+model AIRecommendation {
+  id         String                  @id @default(cuid())
+  entity     String
+  entityId   String?
+  title      String
+  body       String                  @db.Text
+  severity   RecommendationSeverity  @default(INFO)
+  acted      Boolean                 @default(false)
+  source     String                  @default("heuristic")
+  createdAt  DateTime                @default(now())
+
+  @@index([entity, entityId])
+  @@index([severity, acted])
+}
+
+model RiskSignal {
+  id        String   @id @default(cuid())
+  patientId String?
+  patient   Patient? @relation(fields: [patientId], references: [id])
+  type      String
+  severity  RecommendationSeverity @default(ATTENTION)
+  body      String   @db.Text
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([patientId, resolved])
+}
+
+model DigitalTwinSnapshot {
+  id        String   @id @default(cuid())
+  capturedAt DateTime @default(now())
+  state     Json
+  health    Int      @default(100)
+
+  @@index([capturedAt])
+}
