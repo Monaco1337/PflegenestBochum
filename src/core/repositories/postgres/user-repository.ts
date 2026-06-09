@@ -12,60 +12,12 @@
  */
 
 import 'server-only'
-import { Pool } from 'pg'
 import { nanoid } from 'nanoid'
+import { pgQuery as query } from './client'
 import type { BaseEntity, IRepository } from '../base'
 import type { ID, ListQuery, Paginated, Permission, User, UserRole } from '@/core/types'
 
 const TABLE = 'app_users'
-
-function connectionString(): string | undefined {
-  return (
-    process.env.POSTGRES_URL ||
-    process.env.DATABASE_URL ||
-    process.env.POSTGRES_PRISMA_URL ||
-    process.env.POSTGRES_URL_NON_POOLING ||
-    undefined
-  )
-}
-
-// Reuse one pool across warm serverless invocations.
-declare global {
-  // eslint-disable-next-line no-var
-  var __pflegenest_pg_pool__: Pool | undefined
-}
-
-function pool(): Pool {
-  if (!globalThis.__pflegenest_pg_pool__) {
-    globalThis.__pflegenest_pg_pool__ = new Pool({
-      connectionString: connectionString(),
-      ssl: { rejectUnauthorized: false },
-      max: 3,
-      idleTimeoutMillis: 10_000,
-      connectionTimeoutMillis: 10_000,
-    })
-  }
-  return globalThis.__pflegenest_pg_pool__
-}
-
-/** Tagged-template helper → parameterized `pg` query ($1, $2, …). */
-function build(strings: TemplateStringsArray, values: unknown[]): { text: string; values: unknown[] } {
-  let text = ''
-  strings.forEach((part, i) => {
-    text += part
-    if (i < values.length) text += `$${i + 1}`
-  })
-  return { text, values }
-}
-
-async function query<T extends Record<string, unknown>>(
-  strings: TemplateStringsArray,
-  ...values: unknown[]
-): Promise<{ rows: T[]; rowCount: number }> {
-  const { text, values: params } = build(strings, values)
-  const res = await pool().query(text, params)
-  return { rows: res.rows as T[], rowCount: res.rowCount ?? 0 }
-}
 
 type Row = {
   id: string

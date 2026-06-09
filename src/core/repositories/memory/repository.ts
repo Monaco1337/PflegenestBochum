@@ -6,6 +6,7 @@
 
 import { nanoid } from 'nanoid'
 import { store } from './store'
+import { runListQuery } from '../query'
 import type { BaseEntity, IRepository } from '../base'
 import type { ID, ISODateTime, ListQuery, Paginated } from '@/core/types'
 
@@ -46,54 +47,7 @@ export class MemoryRepository<T extends BaseEntity>
   }
 
   async list(query: ListQuery = {}): Promise<Paginated<T>> {
-    let data = Object.values(this.items)
-
-    if (query.search && this.options.searchableFields?.length) {
-      const term = query.search.toLowerCase()
-      data = data.filter(item =>
-        this.options.searchableFields!.some(field => {
-          const value = item[field]
-          if (typeof value !== 'string') return false
-          return value.toLowerCase().includes(term)
-        })
-      )
-    }
-
-    if (query.filters) {
-      for (const [key, value] of Object.entries(query.filters)) {
-        if (value === undefined || value === null || value === '') continue
-        data = data.filter(item => {
-          const itemValue = (item as Record<string, unknown>)[key]
-          if (Array.isArray(value)) {
-            return value.includes(itemValue as never)
-          }
-          return itemValue === value
-        })
-      }
-    }
-
-    const sortKey = (query.sortBy as keyof T) ?? this.options.defaultSortField ?? ('createdAt' as keyof T)
-    const dir = query.sortDir ?? 'desc'
-    data.sort((a, b) => {
-      const av = a[sortKey]
-      const bv = b[sortKey]
-      if (av == null && bv == null) return 0
-      if (av == null) return 1
-      if (bv == null) return -1
-      if (av < bv) return dir === 'asc' ? -1 : 1
-      if (av > bv) return dir === 'asc' ? 1 : -1
-      return 0
-    })
-
-    const total = data.length
-    const offset = query.offset ?? 0
-    const limit = query.limit ?? data.length
-    return {
-      data: data.slice(offset, offset + limit),
-      total,
-      offset,
-      limit,
-    }
+    return runListQuery(Object.values(this.items), this.options, query)
   }
 
   async create(

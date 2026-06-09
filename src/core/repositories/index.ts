@@ -2,8 +2,8 @@
  * Repository registry — single source of truth for all data access.
  *
  * Selects backend per env:
- *   - DATABASE_URL set  → Prisma (not implemented in iteration 1; throws clear error)
- *   - else             → In-memory + JSON persistence (DEMO_MODE)
+ *   - POSTGRES_URL / DATABASE_URL set → Postgres (durable, cross-instance)
+ *   - else                            → In-memory + JSON persistence (local dev)
  *
  * UI/services import `repos.<entity>` and never branch on the backend.
  */
@@ -43,22 +43,28 @@ import type {
 } from '@/core/types'
 import { MemoryRepository } from './memory/repository'
 import { PostgresUserRepository } from './postgres/user-repository'
+import { PostgresRepository, ensureEntitySchema, claimSeedOnce } from './postgres/entity-repository'
 import type { IRepository } from './base'
 
 /**
- * Users need durable, cross-instance persistence (login + accounts) which the
- * in-memory store cannot provide on serverless. When a Postgres connection is
- * available (Vercel Postgres injects POSTGRES_URL automatically) the `users`
- * repository is backed by SQL; everything else stays in the demo store.
+ * On serverless the in-memory store is ephemeral and not shared across
+ * instances, so anything submitted on the website would vanish. When a Postgres
+ * connection is available (POSTGRES_URL / DATABASE_URL — injected automatically
+ * when a database is linked) every collection is SQL-backed, so website forms
+ * and the admin panel stay durably in sync. Locally (no DB) the in-memory store
+ * with JSON persistence remains the fallback.
  */
 export const hasPostgres = Boolean(process.env.POSTGRES_URL || process.env.DATABASE_URL)
 
-function makeMemory<T extends { id: string }>(
+/** Build a repository for a collection, choosing the backend based on env. */
+function makeRepo<T extends { id: string }>(
   collection: string,
   searchableFields: (keyof T)[] = [],
   defaultSortField: keyof T = 'createdAt' as keyof T
 ): IRepository<T> {
-  return new MemoryRepository<T>({ collection, searchableFields, defaultSortField })
+  return hasPostgres
+    ? new PostgresRepository<T>({ collection, searchableFields, defaultSortField })
+    : new MemoryRepository<T>({ collection, searchableFields, defaultSortField })
 }
 
 export interface Repositories {
@@ -97,37 +103,37 @@ export interface Repositories {
 
 function createRepositories(): Repositories {
   return {
-    users: hasPostgres ? new PostgresUserRepository() : makeMemory<User>('users', ['email', 'name']),
-    leads: makeMemory<Lead>('leads', ['firstName', 'lastName', 'email', 'phone', 'message']),
-    patients: makeMemory<Patient>('patients', ['firstName', 'lastName', 'email', 'phone', 'city']),
-    relatives: makeMemory<Relative>('relatives', ['firstName', 'lastName', 'email', 'phone']),
-    doctors: makeMemory<Doctor>('doctors', ['firstName', 'lastName', 'specialty']),
-    insurances: makeMemory<InsuranceProvider>('insurances', ['name', 'code']),
-    hospitals: makeMemory<Hospital>('hospitals', ['name']),
-    applicants: makeMemory<Applicant>('applicants', ['firstName', 'lastName', 'email', 'position']),
-    employees: makeMemory<Employee>('employees', ['firstName', 'lastName', 'email', 'position']),
-    documents: makeMemory<Document>('documents', ['name']),
-    tasks: makeMemory<Task>('tasks', ['title', 'description']),
-    taskComments: makeMemory<TaskComment>('taskComments'),
-    shifts: makeMemory<Shift>('shifts'),
-    tours: makeMemory<Tour>('tours', ['name', 'notes']),
-    tourStops: makeMemory<TourStop>('tourStops'),
-    appointments: makeMemory<Appointment>('appointments', ['type', 'notes']),
-    notes: makeMemory<Note>('notes', ['body']),
-    messages: makeMemory<Message>('messages', ['subject', 'body']),
-    notifications: makeMemory<Notification>('notifications', ['title', 'body']),
-    workflows: makeMemory<Workflow>('workflows', ['name', 'triggerKey']),
-    workflowRuns: makeMemory<WorkflowRun>('workflowRuns'),
-    anamneses: makeMemory<Anamnesis>('anamneses'),
-    pflegegradAssessments: makeMemory<PflegegradAssessment>('pflegegradAssessments'),
-    auditLogs: makeMemory<AuditLog>('auditLogs', ['action', 'entity']),
-    analyticsEvents: makeMemory<AnalyticsEvent>('analyticsEvents', ['name', 'path']),
-    consentRecords: makeMemory<ConsentRecord>('consentRecords', ['subject', 'scope']),
-    aiRecommendations: makeMemory<AIRecommendation>('aiRecommendations', ['title', 'body', 'entity']),
-    riskSignals: makeMemory<RiskSignal>('riskSignals', ['body', 'type']),
-    sickReports: makeMemory<SickReport>('sickReports'),
-    vacationRequests: makeMemory<VacationRequest>('vacationRequests'),
-    twinSnapshots: makeMemory<DigitalTwinSnapshot>('twinSnapshots'),
+    users: hasPostgres ? new PostgresUserRepository() : makeRepo<User>('users', ['email', 'name']),
+    leads: makeRepo<Lead>('leads', ['firstName', 'lastName', 'email', 'phone', 'message']),
+    patients: makeRepo<Patient>('patients', ['firstName', 'lastName', 'email', 'phone', 'city']),
+    relatives: makeRepo<Relative>('relatives', ['firstName', 'lastName', 'email', 'phone']),
+    doctors: makeRepo<Doctor>('doctors', ['firstName', 'lastName', 'specialty']),
+    insurances: makeRepo<InsuranceProvider>('insurances', ['name', 'code']),
+    hospitals: makeRepo<Hospital>('hospitals', ['name']),
+    applicants: makeRepo<Applicant>('applicants', ['firstName', 'lastName', 'email', 'position']),
+    employees: makeRepo<Employee>('employees', ['firstName', 'lastName', 'email', 'position']),
+    documents: makeRepo<Document>('documents', ['name']),
+    tasks: makeRepo<Task>('tasks', ['title', 'description']),
+    taskComments: makeRepo<TaskComment>('taskComments'),
+    shifts: makeRepo<Shift>('shifts'),
+    tours: makeRepo<Tour>('tours', ['name', 'notes']),
+    tourStops: makeRepo<TourStop>('tourStops'),
+    appointments: makeRepo<Appointment>('appointments', ['type', 'notes']),
+    notes: makeRepo<Note>('notes', ['body']),
+    messages: makeRepo<Message>('messages', ['subject', 'body']),
+    notifications: makeRepo<Notification>('notifications', ['title', 'body']),
+    workflows: makeRepo<Workflow>('workflows', ['name', 'triggerKey']),
+    workflowRuns: makeRepo<WorkflowRun>('workflowRuns'),
+    anamneses: makeRepo<Anamnesis>('anamneses'),
+    pflegegradAssessments: makeRepo<PflegegradAssessment>('pflegegradAssessments'),
+    auditLogs: makeRepo<AuditLog>('auditLogs', ['action', 'entity']),
+    analyticsEvents: makeRepo<AnalyticsEvent>('analyticsEvents', ['name', 'path']),
+    consentRecords: makeRepo<ConsentRecord>('consentRecords', ['subject', 'scope']),
+    aiRecommendations: makeRepo<AIRecommendation>('aiRecommendations', ['title', 'body', 'entity']),
+    riskSignals: makeRepo<RiskSignal>('riskSignals', ['body', 'type']),
+    sickReports: makeRepo<SickReport>('sickReports'),
+    vacationRequests: makeRepo<VacationRequest>('vacationRequests'),
+    twinSnapshots: makeRepo<DigitalTwinSnapshot>('twinSnapshots'),
   }
 }
 
@@ -138,12 +144,23 @@ declare global {
 export const repos: Repositories = globalThis.__pflegenest_repos__ ?? createRepositories()
 if (!globalThis.__pflegenest_repos__) globalThis.__pflegenest_repos__ = repos
 
-/** Idempotently prepare the user backend (creates the SQL table in Postgres mode). */
-export async function ensureUserStoreReady(): Promise<void> {
+/** Idempotently prepare the persistence backend (creates SQL tables in Postgres mode). */
+export async function ensureStoreReady(): Promise<void> {
   const users = repos.users as { ensureSchema?: () => Promise<void> }
   if (typeof users.ensureSchema === 'function') {
     await users.ensureSchema()
   }
+  if (hasPostgres) {
+    await ensureEntitySchema()
+  }
+}
+
+/**
+ * Run a one-time action exactly once across instances. In Postgres mode this is
+ * an atomic claim; in the single-process in-memory mode it is always granted.
+ */
+export async function claimOnce(key: string): Promise<boolean> {
+  return hasPostgres ? claimSeedOnce(key) : true
 }
 
 export { MemoryRepository } from './memory/repository'
