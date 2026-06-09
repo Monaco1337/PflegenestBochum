@@ -28,6 +28,20 @@ export async function GET() {
     try {
       const r = await pool.query('SELECT COUNT(*)::text AS count FROM app_users')
       out.app_users_count = Number(r.rows[0]?.count ?? -1)
+      out.usernames = (
+        await pool.query('SELECT username FROM app_users ORDER BY username')
+      ).rows.map((x: { username: string }) => x.username)
+
+      // End-to-end credential self-test (no secrets leaked, only booleans).
+      const admin = (
+        await pool.query('SELECT password_hash, active FROM app_users WHERE username = $1', ['admin'])
+      ).rows[0] as { password_hash: string | null; active: boolean } | undefined
+      if (admin?.password_hash) {
+        const bcrypt = (await import('bcryptjs')).default
+        out.admin_login_ok = admin.active && (await bcrypt.compare('Volvic1337!', admin.password_hash))
+      } else {
+        out.admin_login_ok = false
+      }
       out.db_ok = true
     } finally {
       await pool.end()

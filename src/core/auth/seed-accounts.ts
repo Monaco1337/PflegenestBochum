@@ -26,15 +26,21 @@ export async function ensureAuthAccounts(): Promise<void> {
 
   for (const cfg of ACCOUNTS) {
     if (byUsername.has(cfg.username.toLowerCase()) || byEmail.has(cfg.email.toLowerCase())) continue
-    const passwordHash = await hashPassword(DEFAULT_PASSWORD)
-    await repos.users.create({
-      username: cfg.username,
-      name: cfg.name,
-      email: cfg.email,
-      passwordHash,
-      role: cfg.role,
-      permissions: [],
-      active: true,
-    } as Omit<User, 'id' | 'createdAt' | 'updatedAt'>)
+    try {
+      const passwordHash = await hashPassword(DEFAULT_PASSWORD)
+      await repos.users.create({
+        username: cfg.username,
+        name: cfg.name,
+        email: cfg.email,
+        passwordHash,
+        role: cfg.role,
+        permissions: [],
+        active: true,
+      } as Omit<User, 'id' | 'createdAt' | 'updatedAt'>)
+    } catch {
+      // Ignore unique-violation races: when several serverless instances cold-start
+      // at once they may try to seed the same account. The account ends up created
+      // exactly once; remaining accounts are still attempted on the next request.
+    }
   }
 }
