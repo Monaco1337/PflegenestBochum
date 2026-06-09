@@ -9,7 +9,7 @@
  */
 
 import 'server-only'
-import { createPool, type VercelPool } from '@vercel/postgres'
+import { createClient, type VercelClient } from '@vercel/postgres'
 import { nanoid } from 'nanoid'
 import type { BaseEntity, IRepository } from '../base'
 import type { ID, ListQuery, Paginated, Permission, User, UserRole } from '@/core/types'
@@ -17,26 +17,29 @@ import type { ID, ListQuery, Paginated, Permission, User, UserRole } from '@/cor
 const TABLE = 'app_users'
 
 /**
- * Resolve the connection string from whichever variable Vercel injected. Vercel
- * Postgres always sets POSTGRES_URL (pooled); we fall back to the other common
- * names so linking the store "just works" regardless of integration variant.
+ * Resolve the connection string from whichever variable the platform injected.
+ * The provided string is a *direct* (non-pooled) connection, so we use
+ * `createClient()` (which accepts direct connections) rather than a pool.
  */
 function connectionString(): string | undefined {
   return (
     process.env.POSTGRES_URL ||
+    process.env.DATABASE_URL ||
     process.env.POSTGRES_PRISMA_URL ||
     process.env.POSTGRES_URL_NON_POOLING ||
-    process.env.DATABASE_URL ||
     undefined
   )
 }
 
-let poolSingleton: VercelPool | null = null
-function pool(): VercelPool {
-  if (!poolSingleton) {
-    poolSingleton = createPool({ connectionString: connectionString() })
+/** Open a short-lived client for one unit of work and always close it. */
+async function withClient<T>(fn: (client: VercelClient) => Promise<T>): Promise<T> {
+  const client = createClient({ connectionString: connectionString() })
+  await client.connect()
+  try {
+    return await fn(client)
+  } finally {
+    await client.end()
   }
-  return poolSingleton
 }
 
 type Row = {
@@ -81,8 +84,8 @@ export class PostgresUserRepository implements IRepository<User> {
 
   async ensureSchema(): Promise<void> {
     if (!this.schemaReady) {
-      this.schemaReady = (async () => {
-        await pool().sql`
+      this.schemaReady = withClient(async client => {
+        await client.sql`
           CREATE TABLE IF NOT EXISTS app_users (
             id            text PRIMARY KEY,
             username      text UNIQUE,
@@ -98,21 +101,29 @@ export class PostgresUserRepository implements IRepository<User> {
             updated_at    timestamptz NOT NULL DEFAULT now()
           )
         `
-      })()
+      }).catch(err => {
+        // allow a later retry if the first attempt failed
+        this.schemaReady = null
+        throw err
+      })
     }
     return this.schemaReady
   }
 
   async all(): Promise<User[]> {
     await this.ensureSchema()
-    const { rows } = await pool().sql<Row>`SELECT * FROM app_users ORDER BY created_at DESC`
-    return rows.map(mapRow)
+    return withClient(async client => {
+      const { rows } = await client.sql<Row>`SELECT * FROM app_users ORDER BY created_at DESC`
+      return rows.map(mapRow)
+    })
   }
 
   async findById(id: ID): Promise<User | null> {
     await this.ensureSchema()
-    const { rows } = await pool().sql<Row>`SELECT * FROM app_users WHERE id = ${id} LIMIT 1`
-    return rows[0] ? mapRow(rows[0]) : null
+    return withClient(async client => {
+      const { rows } = await client.sql<Row>`SELECT * FROM app_users WHERE id = ${id} LIMIT 1`
+      return rows[0] ? mapRow(rows[0]) : null
+    })
   }
 
   async findMany(predicate: (entity: User) => boolean): Promise<User[]> {
@@ -123,8 +134,10 @@ export class PostgresUserRepository implements IRepository<User> {
   async count(predicate?: (entity: User) => boolean): Promise<number> {
     if (!predicate) {
       await this.ensureSchema()
-      const { rows } = await pool().sql<{ count: string }>`SELECT COUNT(*)::text AS count FROM app_users`
-      return Number(rows[0]?.count ?? 0)
+      return withClient(async client => {
+        const { rows } = await client.sql<{ count: string }>`SELECT COUNT(*)::text AS count FROM app_users`
+        return Number(rows[0]?.count ?? 0)
+      })
     }
     return (await this.findMany(predicate)).length
   }
@@ -152,23 +165,25 @@ export class PostgresUserRepository implements IRepository<User> {
     await this.ensureSchema()
     const id = data.id ?? nanoid()
     const permissions = JSON.stringify(data.permissions ?? [])
-    const { rows } = await pool().sql<Row>`
-      INSERT INTO app_users (id, username, email, name, password_hash, role, permissions, avatar_url, active, last_login_at)
-      VALUES (
-        ${id},
-        ${data.username ?? null},
-        ${data.email},
-        ${data.name},
-        ${data.passwordHash ?? null},
-        ${data.role},
-        ${permissions}::jsonb,
-        ${data.avatarUrl ?? null},
-        ${data.active ?? true},
-        ${data.lastLoginAt ?? null}
-      )
-      RETURNING *
-    `
-    return mapRow(rows[0])
+    return withClient(async client => {
+      const { rows } = await client.sql<Row>`
+        INSERT INTO app_users (id, username, email, name, password_hash, role, permissions, avatar_url, active, last_login_at)
+        VALUES (
+          ${id},
+          ${data.username ?? null},
+          ${data.email},
+          ${data.name},
+          ${data.passwordHash ?? null},
+          ${data.role},
+          ${permissions}::jsonb,
+          ${data.avatarUrl ?? null},
+          ${data.active ?? true},
+          ${data.lastLoginAt ?? null}
+        )
+        RETURNING *
+      `
+      return mapRow(rows[0])
+    })
   }
 
   async update(id: ID, patch: Partial<Omit<User, 'id' | 'createdAt'>>): Promise<User> {
@@ -176,28 +191,32 @@ export class PostgresUserRepository implements IRepository<User> {
     if (!existing) throw new Error(`Entity ${TABLE}/${id} not found`)
     const merged: User = { ...existing, ...patch, id: existing.id, createdAt: existing.createdAt }
     const permissions = JSON.stringify(merged.permissions ?? [])
-    const { rows } = await pool().sql<Row>`
-      UPDATE app_users SET
-        username      = ${merged.username ?? null},
-        email         = ${merged.email},
-        name          = ${merged.name},
-        password_hash = ${merged.passwordHash ?? null},
-        role          = ${merged.role},
-        permissions   = ${permissions}::jsonb,
-        avatar_url    = ${merged.avatarUrl ?? null},
-        active        = ${merged.active},
-        last_login_at = ${merged.lastLoginAt ?? null},
-        updated_at    = now()
-      WHERE id = ${id}
-      RETURNING *
-    `
-    return mapRow(rows[0])
+    return withClient(async client => {
+      const { rows } = await client.sql<Row>`
+        UPDATE app_users SET
+          username      = ${merged.username ?? null},
+          email         = ${merged.email},
+          name          = ${merged.name},
+          password_hash = ${merged.passwordHash ?? null},
+          role          = ${merged.role},
+          permissions   = ${permissions}::jsonb,
+          avatar_url    = ${merged.avatarUrl ?? null},
+          active        = ${merged.active},
+          last_login_at = ${merged.lastLoginAt ?? null},
+          updated_at    = now()
+        WHERE id = ${id}
+        RETURNING *
+      `
+      return mapRow(rows[0])
+    })
   }
 
   async delete(id: ID): Promise<boolean> {
     await this.ensureSchema()
-    const { rowCount } = await pool().sql`DELETE FROM app_users WHERE id = ${id}`
-    return (rowCount ?? 0) > 0
+    return withClient(async client => {
+      const { rowCount } = await client.sql`DELETE FROM app_users WHERE id = ${id}`
+      return (rowCount ?? 0) > 0
+    })
   }
 }
 

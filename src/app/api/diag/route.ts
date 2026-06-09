@@ -18,16 +18,22 @@ export async function GET() {
   }
 
   try {
-    const { createPool } = await import('@vercel/postgres')
+    const { createClient } = await import('@vercel/postgres')
     const cs =
       process.env.POSTGRES_URL ||
+      process.env.DATABASE_URL ||
       process.env.POSTGRES_PRISMA_URL ||
-      process.env.POSTGRES_URL_NON_POOLING ||
-      process.env.DATABASE_URL
-    const pool = createPool({ connectionString: cs })
-    const r = await pool.sql<{ count: string }>`SELECT COUNT(*)::text AS count FROM app_users`
-    out.app_users_count = Number(r.rows[0]?.count ?? -1)
-    out.db_ok = true
+      process.env.POSTGRES_URL_NON_POOLING
+    const client = createClient({ connectionString: cs })
+    await client.connect()
+    try {
+      await client.sql`CREATE TABLE IF NOT EXISTS app_users (id text PRIMARY KEY)`
+      const r = await client.sql<{ count: string }>`SELECT COUNT(*)::text AS count FROM app_users`
+      out.app_users_count = Number(r.rows[0]?.count ?? -1)
+      out.db_ok = true
+    } finally {
+      await client.end()
+    }
   } catch (e) {
     out.db_ok = false
     out.db_error = (e as Error).message
