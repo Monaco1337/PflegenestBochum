@@ -4,6 +4,7 @@ import { DataTable, type DataTableColumn } from '@/components/tables/data-table'
 import { Badge } from '@/components/ui/badge'
 import { leadStatusLabel, leadSourceLabel, priorityLabel } from '@/core/domain/labels'
 import { RelativeTime } from '@/components/relative-time'
+import { DeleteButton } from '@/components/admin/delete-button'
 import type { Lead, LeadStatus } from '@/core/types'
 
 const statusVariant: Record<LeadStatus, 'info' | 'success' | 'destructive' | 'warning' | 'muted'> = {
@@ -24,6 +25,13 @@ export function LeadsTable({ data }: { data: Lead[] }) {
     { id: 'priority', header: 'Priorität', sortKey: 'priority', cell: l => priorityLabel[l.priority] },
     { id: 'contact', header: 'Kontakt', cell: l => <span className="text-xs text-muted-foreground">{l.email ?? '—'} · {l.phone ?? '—'}</span> },
     { id: 'created', header: 'Erstellt', sortKey: 'createdAt', cell: l => <RelativeTime date={l.createdAt} className="text-xs text-muted-foreground tabular-nums" /> },
+    {
+      id: 'actions', header: '', className: 'w-px text-right', cell: l => (
+        <div className="flex items-center justify-end" onClick={ev => ev.stopPropagation()}>
+          <DeleteButton collection="leads" id={l.id} name={`${l.firstName} ${l.lastName}`} entityLabel="Lead" />
+        </div>
+      ),
+    },
   ]
   return (
     <DataTable

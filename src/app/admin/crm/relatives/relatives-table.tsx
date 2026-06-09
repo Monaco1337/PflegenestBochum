@@ -3,6 +3,7 @@
 import { DataTable, type DataTableColumn } from '@/components/tables/data-table'
 import { Badge } from '@/components/ui/badge'
 import { relationKindLabel } from '@/core/domain/labels'
+import { DeleteButton } from '@/components/admin/delete-button'
 import type { Patient, Relative } from '@/core/types'
 
 export function RelativesTable({ data, patients }: { data: Relative[]; patients: Patient[] }) {
@@ -16,6 +17,13 @@ export function RelativesTable({ data, patients }: { data: Relative[]; patients:
     }},
     { id: 'contact', header: 'Kontakt', cell: r => <span className="text-xs text-muted-foreground">{r.email ?? '—'} · {r.phone ?? '—'}</span> },
     { id: 'primary', header: 'Hauptansprechpartner', cell: r => r.isPrimary ? <Badge variant="success">Ja</Badge> : <Badge variant="muted">Nein</Badge> },
+    {
+      id: 'actions', header: '', className: 'w-px text-right', cell: r => (
+        <div className="flex items-center justify-end" onClick={ev => ev.stopPropagation()}>
+          <DeleteButton collection="relatives" id={r.id} name={`${r.firstName} ${r.lastName}`} entityLabel="Angehörige:r" />
+        </div>
+      ),
+    },
   ]
   return (
     <DataTable

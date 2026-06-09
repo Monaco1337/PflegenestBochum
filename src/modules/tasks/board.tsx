@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { Task, TaskStatus } from '@/core/types'
 import { updateTaskStatusAction } from '@/app/actions/tasks'
+import { DeleteButton } from '@/components/admin/delete-button'
 import { formatDate } from '@/lib/utils'
 
 const accent: Record<TaskStatus, string> = {
@@ -46,7 +47,7 @@ export function TasksBoard({ tasks }: { tasks: Task[] }) {
       columns={columns}
       onMove={onMove}
       renderItem={t => (
-        <Card className="border-0 shadow-none bg-transparent">
+        <Card className="border-0 shadow-none bg-transparent group/task">
           <CardHeader className="pb-1">
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-sm">{t.title}</CardTitle>
@@ -56,7 +57,12 @@ export function TasksBoard({ tasks }: { tasks: Task[] }) {
           </CardHeader>
           <CardContent className="pb-3 pt-1 flex items-center justify-between gap-2">
             <span className="text-[11px] text-muted-foreground">{t.dueDate ? `Fällig ${formatDate(t.dueDate)}` : 'Ohne Frist'}</span>
-            {t.tags.length > 0 ? <span className="text-[11px] text-muted-foreground truncate">#{t.tags[0]}</span> : null}
+            <div className="flex items-center gap-2">
+              {t.tags.length > 0 ? <span className="text-[11px] text-muted-foreground truncate">#{t.tags[0]}</span> : null}
+              <span className="opacity-0 transition-opacity group-hover/task:opacity-100">
+                <DeleteButton collection="tasks" id={t.id} name={t.title} entityLabel="Aufgabe" />
+              </span>
+            </div>
           </CardContent>
         </Card>
       )}
