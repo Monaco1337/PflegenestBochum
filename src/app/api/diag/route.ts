@@ -5,14 +5,16 @@ export const dynamic = 'force-dynamic'
 // TEMPORARY diagnostic — reports runtime DB wiring without leaking secrets.
 export async function GET() {
   const present = (v?: string) => Boolean(v && v.length > 0)
+  const scheme = (v?: string) => (v ? v.split('://')[0] : null)
   const out: Record<string, unknown> = {
     POSTGRES_URL: present(process.env.POSTGRES_URL),
     POSTGRES_PRISMA_URL: present(process.env.POSTGRES_PRISMA_URL),
     POSTGRES_URL_NON_POOLING: present(process.env.POSTGRES_URL_NON_POOLING),
     DATABASE_URL: present(process.env.DATABASE_URL),
     PRISMA_DATABASE_URL: present(process.env.PRISMA_DATABASE_URL),
-    DATABASE_URL_scheme: (process.env.DATABASE_URL ?? '').split(':')[0] || null,
-    POSTGRES_URL_scheme: (process.env.POSTGRES_URL ?? '').split(':')[0] || null,
+    DATABASE_URL_scheme: scheme(process.env.DATABASE_URL),
+    POSTGRES_URL_scheme: scheme(process.env.POSTGRES_URL),
+    PRISMA_DATABASE_URL_scheme: scheme(process.env.PRISMA_DATABASE_URL),
   }
 
   try {
