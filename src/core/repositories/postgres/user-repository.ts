@@ -1,26 +1,24 @@
 /**
- * Postgres-backed user repository (Vercel Postgres).
+ * Postgres-backed user repository (standard `pg` driver).
  *
- * Active when a Postgres connection string is present (POSTGRES_URL — injected
- * automatically when a Vercel Postgres store is linked to the project). This is
- * the only entity that needs durable, cross-instance persistence on serverless,
- * so it is the only repository backed by SQL. Everything else stays in the
- * in-memory/demo store (see ../index.ts).
+ * Active when a Postgres connection string is present (POSTGRES_URL /
+ * DATABASE_URL — injected automatically when a database is linked to the
+ * project). This is the only entity that needs durable, cross-instance
+ * persistence on serverless, so it is the only repository backed by SQL.
+ * Everything else stays in the in-memory/demo store (see ../index.ts).
+ *
+ * We use the plain `pg` driver (TCP/TLS) so it works with any Postgres
+ * provider, not just Neon's WebSocket endpoint.
  */
 
 import 'server-only'
-import { createClient, type VercelClient } from '@vercel/postgres'
+import { Pool } from 'pg'
 import { nanoid } from 'nanoid'
 import type { BaseEntity, IRepository } from '../base'
 import type { ID, ListQuery, Paginated, Permission, User, UserRole } from '@/core/types'
 
 const TABLE = 'app_users'
 
-/**
- * Resolve the connection string from whichever variable the platform injected.
- * The provided string is a *direct* (non-pooled) connection, so we use
- * `createClient()` (which accepts direct connections) rather than a pool.
- */
 function connectionString(): string | undefined {
   return (
     process.env.POSTGRES_URL ||
@@ -31,15 +29,42 @@ function connectionString(): string | undefined {
   )
 }
 
-/** Open a short-lived client for one unit of work and always close it. */
-async function withClient<T>(fn: (client: VercelClient) => Promise<T>): Promise<T> {
-  const client = createClient({ connectionString: connectionString() })
-  await client.connect()
-  try {
-    return await fn(client)
-  } finally {
-    await client.end()
+// Reuse one pool across warm serverless invocations.
+declare global {
+  // eslint-disable-next-line no-var
+  var __pflegenest_pg_pool__: Pool | undefined
+}
+
+function pool(): Pool {
+  if (!globalThis.__pflegenest_pg_pool__) {
+    globalThis.__pflegenest_pg_pool__ = new Pool({
+      connectionString: connectionString(),
+      ssl: { rejectUnauthorized: false },
+      max: 3,
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 10_000,
+    })
   }
+  return globalThis.__pflegenest_pg_pool__
+}
+
+/** Tagged-template helper → parameterized `pg` query ($1, $2, …). */
+function build(strings: TemplateStringsArray, values: unknown[]): { text: string; values: unknown[] } {
+  let text = ''
+  strings.forEach((part, i) => {
+    text += part
+    if (i < values.length) text += `$${i + 1}`
+  })
+  return { text, values }
+}
+
+async function query<T extends Record<string, unknown>>(
+  strings: TemplateStringsArray,
+  ...values: unknown[]
+): Promise<{ rows: T[]; rowCount: number }> {
+  const { text, values: params } = build(strings, values)
+  const res = await pool().query(text, params)
+  return { rows: res.rows as T[], rowCount: res.rowCount ?? 0 }
 }
 
 type Row = {
@@ -62,6 +87,19 @@ function toIso(value: Date | string | null | undefined): string | undefined {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString()
 }
 
+function parsePermissions(value: unknown): Permission[] {
+  if (Array.isArray(value)) return value as Permission[]
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? (parsed as Permission[]) : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
 function mapRow(row: Row): User {
   return {
     id: row.id,
@@ -70,7 +108,7 @@ function mapRow(row: Row): User {
     name: row.name,
     passwordHash: row.password_hash ?? undefined,
     role: row.role as UserRole,
-    permissions: (Array.isArray(row.permissions) ? row.permissions : []) as Permission[],
+    permissions: parsePermissions(row.permissions),
     avatarUrl: row.avatar_url ?? undefined,
     active: row.active,
     lastLoginAt: toIso(row.last_login_at),
@@ -84,46 +122,41 @@ export class PostgresUserRepository implements IRepository<User> {
 
   async ensureSchema(): Promise<void> {
     if (!this.schemaReady) {
-      this.schemaReady = withClient(async client => {
-        await client.sql`
-          CREATE TABLE IF NOT EXISTS app_users (
-            id            text PRIMARY KEY,
-            username      text UNIQUE,
-            email         text UNIQUE NOT NULL,
-            name          text NOT NULL,
-            password_hash text,
-            role          text NOT NULL DEFAULT 'mitarbeiter',
-            permissions   jsonb NOT NULL DEFAULT '[]'::jsonb,
-            avatar_url    text,
-            active        boolean NOT NULL DEFAULT true,
-            last_login_at timestamptz,
-            created_at    timestamptz NOT NULL DEFAULT now(),
-            updated_at    timestamptz NOT NULL DEFAULT now()
-          )
-        `
-      }).catch(err => {
-        // allow a later retry if the first attempt failed
-        this.schemaReady = null
-        throw err
-      })
+      this.schemaReady = query`
+        CREATE TABLE IF NOT EXISTS app_users (
+          id            text PRIMARY KEY,
+          username      text UNIQUE,
+          email         text UNIQUE NOT NULL,
+          name          text NOT NULL,
+          password_hash text,
+          role          text NOT NULL DEFAULT 'mitarbeiter',
+          permissions   jsonb NOT NULL DEFAULT '[]'::jsonb,
+          avatar_url    text,
+          active        boolean NOT NULL DEFAULT true,
+          last_login_at timestamptz,
+          created_at    timestamptz NOT NULL DEFAULT now(),
+          updated_at    timestamptz NOT NULL DEFAULT now()
+        )
+      `
+        .then(() => undefined)
+        .catch(err => {
+          this.schemaReady = null
+          throw err
+        })
     }
     return this.schemaReady
   }
 
   async all(): Promise<User[]> {
     await this.ensureSchema()
-    return withClient(async client => {
-      const { rows } = await client.sql<Row>`SELECT * FROM app_users ORDER BY created_at DESC`
-      return rows.map(mapRow)
-    })
+    const { rows } = await query<Row>`SELECT * FROM app_users ORDER BY created_at DESC`
+    return rows.map(mapRow)
   }
 
   async findById(id: ID): Promise<User | null> {
     await this.ensureSchema()
-    return withClient(async client => {
-      const { rows } = await client.sql<Row>`SELECT * FROM app_users WHERE id = ${id} LIMIT 1`
-      return rows[0] ? mapRow(rows[0]) : null
-    })
+    const { rows } = await query<Row>`SELECT * FROM app_users WHERE id = ${id} LIMIT 1`
+    return rows[0] ? mapRow(rows[0]) : null
   }
 
   async findMany(predicate: (entity: User) => boolean): Promise<User[]> {
@@ -134,18 +167,16 @@ export class PostgresUserRepository implements IRepository<User> {
   async count(predicate?: (entity: User) => boolean): Promise<number> {
     if (!predicate) {
       await this.ensureSchema()
-      return withClient(async client => {
-        const { rows } = await client.sql<{ count: string }>`SELECT COUNT(*)::text AS count FROM app_users`
-        return Number(rows[0]?.count ?? 0)
-      })
+      const { rows } = await query<{ count: string }>`SELECT COUNT(*)::text AS count FROM app_users`
+      return Number(rows[0]?.count ?? 0)
     }
     return (await this.findMany(predicate)).length
   }
 
-  async list(query: ListQuery = {}): Promise<Paginated<User>> {
+  async list(q: ListQuery = {}): Promise<Paginated<User>> {
     let data = await this.all()
-    if (query.search) {
-      const term = query.search.toLowerCase()
+    if (q.search) {
+      const term = q.search.toLowerCase()
       data = data.filter(
         u =>
           u.name.toLowerCase().includes(term) ||
@@ -154,8 +185,8 @@ export class PostgresUserRepository implements IRepository<User> {
       )
     }
     const total = data.length
-    const offset = query.offset ?? 0
-    const limit = query.limit ?? data.length
+    const offset = q.offset ?? 0
+    const limit = q.limit ?? data.length
     return { data: data.slice(offset, offset + limit), total, offset, limit }
   }
 
@@ -165,25 +196,23 @@ export class PostgresUserRepository implements IRepository<User> {
     await this.ensureSchema()
     const id = data.id ?? nanoid()
     const permissions = JSON.stringify(data.permissions ?? [])
-    return withClient(async client => {
-      const { rows } = await client.sql<Row>`
-        INSERT INTO app_users (id, username, email, name, password_hash, role, permissions, avatar_url, active, last_login_at)
-        VALUES (
-          ${id},
-          ${data.username ?? null},
-          ${data.email},
-          ${data.name},
-          ${data.passwordHash ?? null},
-          ${data.role},
-          ${permissions}::jsonb,
-          ${data.avatarUrl ?? null},
-          ${data.active ?? true},
-          ${data.lastLoginAt ?? null}
-        )
-        RETURNING *
-      `
-      return mapRow(rows[0])
-    })
+    const { rows } = await query<Row>`
+      INSERT INTO app_users (id, username, email, name, password_hash, role, permissions, avatar_url, active, last_login_at)
+      VALUES (
+        ${id},
+        ${data.username ?? null},
+        ${data.email},
+        ${data.name},
+        ${data.passwordHash ?? null},
+        ${data.role},
+        ${permissions}::jsonb,
+        ${data.avatarUrl ?? null},
+        ${data.active ?? true},
+        ${data.lastLoginAt ?? null}
+      )
+      RETURNING *
+    `
+    return mapRow(rows[0])
   }
 
   async update(id: ID, patch: Partial<Omit<User, 'id' | 'createdAt'>>): Promise<User> {
@@ -191,32 +220,28 @@ export class PostgresUserRepository implements IRepository<User> {
     if (!existing) throw new Error(`Entity ${TABLE}/${id} not found`)
     const merged: User = { ...existing, ...patch, id: existing.id, createdAt: existing.createdAt }
     const permissions = JSON.stringify(merged.permissions ?? [])
-    return withClient(async client => {
-      const { rows } = await client.sql<Row>`
-        UPDATE app_users SET
-          username      = ${merged.username ?? null},
-          email         = ${merged.email},
-          name          = ${merged.name},
-          password_hash = ${merged.passwordHash ?? null},
-          role          = ${merged.role},
-          permissions   = ${permissions}::jsonb,
-          avatar_url    = ${merged.avatarUrl ?? null},
-          active        = ${merged.active},
-          last_login_at = ${merged.lastLoginAt ?? null},
-          updated_at    = now()
-        WHERE id = ${id}
-        RETURNING *
-      `
-      return mapRow(rows[0])
-    })
+    const { rows } = await query<Row>`
+      UPDATE app_users SET
+        username      = ${merged.username ?? null},
+        email         = ${merged.email},
+        name          = ${merged.name},
+        password_hash = ${merged.passwordHash ?? null},
+        role          = ${merged.role},
+        permissions   = ${permissions}::jsonb,
+        avatar_url    = ${merged.avatarUrl ?? null},
+        active        = ${merged.active},
+        last_login_at = ${merged.lastLoginAt ?? null},
+        updated_at    = now()
+      WHERE id = ${id}
+      RETURNING *
+    `
+    return mapRow(rows[0])
   }
 
   async delete(id: ID): Promise<boolean> {
     await this.ensureSchema()
-    return withClient(async client => {
-      const { rowCount } = await client.sql`DELETE FROM app_users WHERE id = ${id}`
-      return (rowCount ?? 0) > 0
-    })
+    const { rowCount } = await query`DELETE FROM app_users WHERE id = ${id}`
+    return rowCount > 0
   }
 }
 
