@@ -41,7 +41,7 @@ const items: Array<{ icon: LucideIcon; q: string; a: string }> = [
   {
     icon: FileText,
     q: 'Was passiert beim Erstgespräch?',
-    a: 'Wir nehmen uns Zeit, hören zu und analysieren gemeinsam Ihren Bedarf – kostenlos und unverbindlich.',
+    a: 'Wir nehmen uns Zeit, hören zu und analysieren gemeinsam Ihren Bedarf – unverbindlich.',
   },
   {
     icon: UserRound,
@@ -252,7 +252,7 @@ export function FAQ({ showConsultationBanner = true }: { showConsultationBanner?
                   </span>
                   <span className="leading-tight">
                     <span className="block text-sm font-semibold">Beratung anfragen</span>
-                    <span className="block text-xs text-white/70">Unverbindlich &amp; kostenlos</span>
+                    <span className="block text-xs text-white/70">Unverbindlich</span>
                   </span>
                 </Link>
               </div>

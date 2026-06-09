@@ -38,7 +38,7 @@ const processSteps: Array<{ icon: LucideIcon; step: string; title: string; body:
   {
     icon: HeartHandshake,
     step: '02',
-    title: 'Kostenloses Beratungsgespräch',
+    title: 'Persönliches Beratungsgespräch',
     body: 'Wir lernen Ihre Situation kennen und klären gemeinsam den individuellen Pflegebedarf.',
   },
   {
@@ -129,7 +129,7 @@ export default function LeistungenPage() {
                 variant="outline"
                 className="h-12 rounded-lg border-slate-300 bg-white px-6 text-[0.9375rem] font-semibold text-[#1B3F5F] hover:bg-slate-50"
               >
-                <Link href="/kontakt">Kostenlose Beratung</Link>
+                <Link href="/kontakt">Beratung anfragen</Link>
               </Button>
             </div>
           </div>
@@ -217,7 +217,7 @@ export default function LeistungenPage() {
                 Nicht sicher, welche Leistung Sie brauchen?
               </h2>
               <p className="mt-3 max-w-md text-base leading-relaxed text-white/75">
-                Wir beraten Sie kostenlos und unverbindlich. Gemeinsam finden wir die passende Versorgung für Sie oder
+                Wir beraten Sie unverbindlich. Gemeinsam finden wir die passende Versorgung für Sie oder
                 Ihre Angehörigen.
               </p>
             </div>
@@ -244,7 +244,7 @@ export default function LeistungenPage() {
                 </span>
                 <span className="leading-tight">
                   <span className="block text-sm font-semibold text-[#1B3F5F]">Beratung anfragen</span>
-                  <span className="block text-xs text-slate-500">Unverbindlich &amp; kostenlos</span>
+                  <span className="block text-xs text-slate-500">Unverbindlich</span>
                 </span>
               </Link>
             </div>

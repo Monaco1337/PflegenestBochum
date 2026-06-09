@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -18,8 +19,27 @@ export default function HomePage() {
     <>
       <LocalBusinessSchema />
 
-      <Hero />
-      <ServicesShowcase />
+      {/* Hero + Leistungen teilen sich auf Desktop ein durchgehendes Hintergrundbild */}
+      <div className="relative">
+        <div className="absolute inset-0 hidden lg:block" aria-hidden>
+          <Image
+            src="/images/hero/desktop.png"
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover object-[65%_16%]"
+          />
+          {/* Links weiß für die Lesbarkeit des Hero-Textes */}
+          <div className="absolute inset-0 bg-gradient-to-r from-white from-22% via-white/94 via-40% to-transparent to-68%" />
+          {/* Nach unten ins Weiß auslaufen — Bild bleibt hinter den Karten sichtbar */}
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent via-62% to-white/95 to-100%" />
+        </div>
+
+        <Hero />
+        <ServicesShowcase />
+      </div>
+
       <PromiseBanner />
       <HowItWorks />
 

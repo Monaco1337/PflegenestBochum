@@ -27,9 +27,8 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col bg-background">
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-        <div className="container flex h-16 items-center justify-between gap-4">
-          <LogoLink size="sm" priority className="sm:hidden" />
-          <LogoLink size="md" priority className="hidden sm:inline-flex" />
+        <div className="container flex h-20 items-center justify-between gap-4 sm:h-24">
+          <LogoLink size="xl" priority />
           <nav className="hidden lg:flex items-center gap-1" aria-label="Hauptnavigation">
             {navItems.map(item => (
               <Link
@@ -68,26 +67,34 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
         </div>
         {open ? (
           <div className="lg:hidden border-t bg-background animate-fade-in">
-            <div className="container flex flex-col py-3">
+            <div className="container flex flex-col gap-0.5 py-3">
               {navItems.map(item => (
                 <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => setOpen(false)}
                   className={cn(
-                    'flex items-center justify-between rounded-md px-3 py-3 text-sm font-medium hover:bg-muted',
+                    'flex items-center justify-between rounded-lg px-3 py-3 text-[0.9375rem] font-medium transition-colors active:scale-[0.99] hover:bg-muted',
                     isActive(item.href) && 'bg-[#1B3F5F]/5 font-semibold text-[#1B3F5F]'
                   )}
                 >
                   {item.label}
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  <ChevronRight className={cn('h-4 w-4', isActive(item.href) ? 'text-[#2563eb]' : 'text-muted-foreground')} />
                 </Link>
               ))}
+              <a
+                href="tel:+4923279911907"
+                onClick={() => setOpen(false)}
+                className="mt-2 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-3 text-[0.9375rem] font-medium text-[#1B3F5F] transition-colors active:scale-[0.99]"
+              >
+                <Phone className="h-4 w-4 text-[#2563eb]" aria-hidden />
+                02327 / 9911907
+              </a>
               <div className="flex gap-2 pt-2">
-                <Button asChild size="sm" className="flex-1">
+                <Button asChild className="h-11 flex-1 rounded-xl transition-transform active:scale-[0.98]">
                   <Link href="/pflegegrad" onClick={() => setOpen(false)}>Pflegegrad prüfen</Link>
                 </Button>
-                <Button asChild size="sm" variant="outline" className="flex-1">
+                <Button asChild variant="outline" className="h-11 flex-1 rounded-xl transition-transform active:scale-[0.98]">
                   <Link href="/kontakt" onClick={() => setOpen(false)}>Rückruf</Link>
                 </Button>
               </div>
@@ -114,7 +121,7 @@ function Footer() {
       <div className="container py-12 sm:py-14">
         <div className="grid gap-10 lg:grid-cols-12 lg:gap-8">
           <div className="space-y-4 lg:col-span-4">
-            <LogoLink size="lg" href="/" />
+            <LogoLink size="2xl" href="/" />
             <p className="max-w-xs text-sm leading-relaxed text-slate-600">
               Menschliche Pflege, digital organisiert. Ambulante Pflege &amp; Beratung in Bochum und Umgebung.
             </p>

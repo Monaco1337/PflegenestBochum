@@ -1,56 +1,13 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import {
-  ArrowRight,
-  Clock,
-  FileText,
-  Heart,
-  MapPin,
-  MessageCircle,
-  Sparkles,
-  User,
-  UserCheck,
-  Zap,
-} from 'lucide-react'
+import { ArrowRight, Clock, MapPin, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { RelativesFeatures } from '@/modules/website/relatives-features'
 
 const imageHighlights = [
   { icon: Clock, title: '24h', subtitle: 'Rückmeldung' },
   { icon: User, title: 'Persönlicher', subtitle: 'Ansprechpartner' },
   { icon: MapPin, title: 'Vor Ort', subtitle: 'in Bochum' },
-]
-
-const features = [
-  {
-    icon: UserCheck,
-    title: 'Fester Ansprechpartner',
-    description: 'Ein direkter Kontakt für alle Fragen und Anliegen.',
-  },
-  {
-    icon: MessageCircle,
-    title: 'Transparente Kommunikation',
-    description: 'Wir informieren Sie regelmäßig und halten Sie auf dem Laufenden.',
-  },
-  {
-    icon: Zap,
-    title: 'Schnelle Rückmeldungen',
-    description: 'Wir reagieren zügig und sind für Sie da.',
-  },
-  {
-    icon: FileText,
-    title: 'Unterstützung bei Anträgen',
-    description: 'Wir helfen bei Pflegegrad, Kasse und allen Formalitäten.',
-  },
-  {
-    icon: Heart,
-    title: 'Hilfe bei Pflegegrad-Fragen',
-    description: 'Wir erklären verständlich, was Ihnen zusteht.',
-  },
-  {
-    icon: Sparkles,
-    title: 'Entlastung im Alltag',
-    description: 'Wir übernehmen, damit Sie mehr Zeit für sich haben.',
-  },
 ]
 
 export function RelativesSection({ headingAs = 'h2', priority = false }: { headingAs?: 'h1' | 'h2'; priority?: boolean }) {
@@ -59,7 +16,7 @@ export function RelativesSection({ headingAs = 'h2', priority = false }: { headi
   return (
     <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:items-stretch lg:gap-12 xl:gap-16">
       {/* Image column */}
-      <div className="relative order-1 lg:order-none">
+      <div className="relative order-1 min-w-0 lg:order-none">
         <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl sm:aspect-[5/4] lg:aspect-auto lg:h-full lg:min-h-[520px]">
           <Image
             src="/images/relatives-desktop.png"
@@ -70,12 +27,12 @@ export function RelativesSection({ headingAs = 'h2', priority = false }: { headi
             className="hidden object-cover object-left lg:block"
           />
           <Image
-            src="/images/relatives-mobile.png"
-            alt="Angehörige und PflegeNest im vertrauensvollen Gespräch am Smartphone"
+            src="/images/relatives-mobile-care.png"
+            alt="PflegeNest Pflegekraft im persönlichen Gespräch mit einem älteren Herrn auf dem Sofa"
             fill
             priority={priority}
             sizes="100vw"
-            className="object-cover object-left lg:hidden"
+            className="object-cover object-center lg:hidden"
           />
         </div>
 
@@ -98,7 +55,7 @@ export function RelativesSection({ headingAs = 'h2', priority = false }: { headi
       </div>
 
       {/* Content column */}
-      <div className="order-2 lg:order-none">
+      <div className="order-2 min-w-0 lg:order-none">
         <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-[#1B3F5F]">
           Für Angehörige
         </span>
@@ -129,20 +86,7 @@ export function RelativesSection({ headingAs = 'h2', priority = false }: { headi
           ))}
         </ul>
 
-        <div className="mt-7 grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map(item => (
-            <div
-              key={item.title}
-              className="rounded-xl border border-slate-200/70 bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-shadow hover:shadow-[0_4px_16px_-4px_rgba(27,63,95,0.1)]"
-            >
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#1B3F5F]/[0.08] text-[#2563eb]">
-                <item.icon className="h-4 w-4" aria-hidden />
-              </div>
-              <h3 className="mt-3 text-sm font-semibold text-[#1B3F5F]">{item.title}</h3>
-              <p className="mt-1 text-xs leading-relaxed text-slate-600 sm:text-[13px]">{item.description}</p>
-            </div>
-          ))}
-        </div>
+        <RelativesFeatures className="mt-7" />
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
           <Button

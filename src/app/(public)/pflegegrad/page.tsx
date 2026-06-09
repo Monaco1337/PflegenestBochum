@@ -1,15 +1,15 @@
-import { Clock, Gift, ShieldCheck } from 'lucide-react'
+import { Clock, Handshake, ShieldCheck } from 'lucide-react'
 import { PflegegradWizard } from '@/modules/pflegegrad/Wizard'
 
 export const metadata = {
   title: 'Pflegegrad prüfen — Pflegegrad-Voreinschätzung Bochum',
   description:
-    'Schnelle, kostenlose Pflegegrad-Voreinschätzung mit anschließendem Beratungsangebot. NBA-orientiert, DSGVO-konform — eine Orientierung, keine rechtsverbindliche Einstufung.',
+    'Schnelle Pflegegrad-Voreinschätzung mit anschließendem Beratungsangebot. NBA-orientiert, DSGVO-konform — eine Orientierung, keine rechtsverbindliche Einstufung.',
 }
 
 const trustChips = [
   { icon: Clock, label: 'Ca. 5 Minuten' },
-  { icon: Gift, label: 'Kostenlos & unverbindlich' },
+  { icon: Handshake, label: 'Unverbindlich' },
   { icon: ShieldCheck, label: 'DSGVO-konform' },
 ]
 

@@ -216,7 +216,7 @@ function ServicesSlider() {
 
 export function ServicesShowcase() {
   return (
-    <section className="bg-white pb-8 pt-3 lg:pb-10 lg:pt-4">
+    <section className="relative z-10 bg-white pb-8 pt-3 lg:bg-transparent lg:pb-16 lg:pt-4">
       <div className="container">
         <ServicesSlider />
         <div className="hidden items-start gap-3 lg:grid lg:grid-cols-6">

@@ -2,9 +2,13 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
-/** Original brand asset — 1:1 from PflegeNest Bochum corporate identity */
-export const BRAND_LOGO_SRC = '/brand/pflegenest-logo.png'
+/** Brand asset — stacked PflegeNest Bochum lockup (icon + wordmark) */
+export const BRAND_LOGO_SRC = '/brand/pflegenest-logo-2026.png'
 export const BRAND_MARK_SRC = '/brand/logo-mark.svg'
+
+/** Intrinsic pixel dimensions of the stacked brand logo (portrait) */
+const LOGO_W = 433
+const LOGO_H = 577
 
 const heights = {
   xs: 28,
@@ -32,11 +36,11 @@ export function Logo({ size = 'md', className, priority = false }: LogoProps) {
     <Image
       src={BRAND_LOGO_SRC}
       alt="PflegeNest Bochum"
-      width={1024}
-      height={1024}
+      width={LOGO_W}
+      height={LOGO_H}
       priority={priority}
       className={cn('select-none', className)}
-      style={{ height: h, width: h }}
+      style={{ height: h, width: 'auto' }}
       draggable={false}
     />
   )
