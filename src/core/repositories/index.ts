@@ -42,9 +42,16 @@ import type {
   WorkflowRun,
 } from '@/core/types'
 import { MemoryRepository } from './memory/repository'
+import { PostgresUserRepository } from './postgres/user-repository'
 import type { IRepository } from './base'
 
-const usePrisma = Boolean(process.env.DATABASE_URL) && process.env.DEMO_MODE !== 'true'
+/**
+ * Users need durable, cross-instance persistence (login + accounts) which the
+ * in-memory store cannot provide on serverless. When a Postgres connection is
+ * available (Vercel Postgres injects POSTGRES_URL automatically) the `users`
+ * repository is backed by SQL; everything else stays in the demo store.
+ */
+export const hasPostgres = Boolean(process.env.POSTGRES_URL || process.env.DATABASE_URL)
 
 function makeMemory<T extends { id: string }>(
   collection: string,
@@ -52,13 +59,6 @@ function makeMemory<T extends { id: string }>(
   defaultSortField: keyof T = 'createdAt' as keyof T
 ): IRepository<T> {
   return new MemoryRepository<T>({ collection, searchableFields, defaultSortField })
-}
-
-function notImplemented(name: string): IRepository<never> {
-  throw new Error(
-    `[repositories] Prisma backend for '${name}' is not implemented yet in this iteration. ` +
-      'Unset DATABASE_URL or set DEMO_MODE=true to use the in-memory backend.'
-  )
 }
 
 export interface Repositories {
@@ -96,12 +96,8 @@ export interface Repositories {
 }
 
 function createRepositories(): Repositories {
-  if (usePrisma) {
-    return notImplemented('all') as unknown as Repositories
-  }
-
   return {
-    users: makeMemory<User>('users', ['email', 'name']),
+    users: hasPostgres ? new PostgresUserRepository() : makeMemory<User>('users', ['email', 'name']),
     leads: makeMemory<Lead>('leads', ['firstName', 'lastName', 'email', 'phone', 'message']),
     patients: makeMemory<Patient>('patients', ['firstName', 'lastName', 'email', 'phone', 'city']),
     relatives: makeMemory<Relative>('relatives', ['firstName', 'lastName', 'email', 'phone']),
@@ -141,6 +137,14 @@ declare global {
 
 export const repos: Repositories = globalThis.__pflegenest_repos__ ?? createRepositories()
 if (!globalThis.__pflegenest_repos__) globalThis.__pflegenest_repos__ = repos
+
+/** Idempotently prepare the user backend (creates the SQL table in Postgres mode). */
+export async function ensureUserStoreReady(): Promise<void> {
+  const users = repos.users as { ensureSchema?: () => Promise<void> }
+  if (typeof users.ensureSchema === 'function') {
+    await users.ensureSchema()
+  }
+}
 
 export { MemoryRepository } from './memory/repository'
 export type { IRepository } from './base'

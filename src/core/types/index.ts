@@ -56,8 +56,12 @@ export type Permission =
 
 export interface User {
   id: ID
+  /** Login handle (e.g. "admin"). Unique, case-insensitive. */
+  username?: string
   email: Email
   name: string
+  /** bcrypt hash — never exposed to the client. */
+  passwordHash?: string
   role: UserRole
   permissions: Permission[]
   avatarUrl?: string

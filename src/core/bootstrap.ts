@@ -3,11 +3,12 @@
  * Must be idempotent. Called once per process from the root layout.
  */
 import 'server-only'
-import { repos } from '@/core/repositories'
+import { repos, ensureUserStoreReady } from '@/core/repositories'
 import { eventBus } from '@/core/events/bus'
 import { installDefaultAuditSubscribers } from '@/core/audit'
 import { installWorkflowEngine } from '@/core/workflows/engine'
 import { installNotificationSubscribers } from '@/core/services/notifications'
+import { ensureAuthAccounts } from '@/core/auth/seed-accounts'
 import { seedDemoData } from '@/core/seed'
 
 let booted = false
@@ -24,9 +25,16 @@ export async function bootstrap() {
   await installWorkflowEngine()
   installNotificationSubscribers()
 
+  // Prepare the user backend (creates the SQL table in Postgres mode) and make
+  // sure the three fixed operator logins always exist — local and online.
+  await ensureUserStoreReady()
+  await ensureAuthAccounts()
+
+  // Demo content for the rest of the admin panel (decoupled from the user seed
+  // so the login list stays limited to the real accounts).
   if (process.env.DEMO_MODE !== 'false') {
-    const existingUsers = await repos.users.all()
-    if (existingUsers.length === 0) {
+    const existingPatients = await repos.patients.all()
+    if (existingPatients.length === 0) {
       await seedDemoData()
     }
   }

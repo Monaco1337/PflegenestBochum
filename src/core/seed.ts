@@ -11,33 +11,14 @@ import type {
   Lead,
   Patient,
   Task,
-  User,
 } from '@/core/types'
 
 const now = () => new Date().toISOString()
 const daysFromNow = (n: number) => new Date(Date.now() + n * 86400_000).toISOString()
 
 export async function seedDemoData() {
-  const users: User[] = []
-
-  for (const cfg of [
-    { email: 'admin@pflegenest-bochum.de', name: 'Admin Demo', role: 'super_admin' as const },
-    { email: 'leitung@pflegenest-bochum.de', name: 'Sarah Becker', role: 'pflegedienstleitung' as const },
-    { email: 'verwaltung@pflegenest-bochum.de', name: 'Daniel Vogel', role: 'verwaltung' as const },
-    { email: 'recruiting@pflegenest-bochum.de', name: 'Lena Hoffmann', role: 'recruiting' as const },
-    { email: 'gf@pflegenest-bochum.de', name: 'Mark Stein', role: 'geschaeftsfuehrung' as const },
-  ]) {
-    users.push(
-      (await repos.users.create({
-        email: cfg.email,
-        name: cfg.name,
-        role: cfg.role,
-        permissions: [],
-        active: true,
-      })) as User
-    )
-  }
-
+  // Login accounts are seeded separately (see core/auth/seed-accounts.ts) so the
+  // demo data below never adds extra users to the account list.
   const employeesData = [
     { firstName: 'Anna', lastName: 'Schulz', position: 'Pflegefachkraft', qualification: 'Examiniert', status: 'active' as const },
     { firstName: 'Mehmet', lastName: 'Yilmaz', position: 'Pflegehelfer', qualification: 'Pflegebasiskurs', status: 'active' as const },

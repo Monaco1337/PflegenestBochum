@@ -13,7 +13,9 @@ export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Einstellungen' }
 
 export default async function SettingsPage() {
-  const [users, session] = await Promise.all([repos.users.all(), getSession()])
+  const [rawUsers, session] = await Promise.all([repos.users.all(), getSession()])
+  // Strip password hashes before handing the list to the client table.
+  const users = rawUsers.map(({ passwordHash: _omit, ...u }) => u)
   const canManage = session ? can(session.user, 'manage_settings') : false
 
   return (

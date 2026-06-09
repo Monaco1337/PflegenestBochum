@@ -79,9 +79,12 @@ export async function getSession(): Promise<{ user: SessionUser } | null> {
   if (!payload) return null
   const user = (await repos.users.findById(payload.userId)) as User | null
   if (!user || !user.active) return null
+  // Never expose the password hash beyond the server boundary (session is
+  // serialized into client components via the SessionProvider).
+  const { passwordHash: _ignored, ...safe } = user
   return {
     user: {
-      ...user,
+      ...safe,
       effectivePermissions: effectivePermissions(user),
     },
   }

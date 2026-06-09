@@ -1,11 +1,12 @@
 import Link from 'next/link'
-import { ArrowRight, UserPlus } from 'lucide-react'
+import { ArrowRight, KeyRound, UserPlus } from 'lucide-react'
 import { getSession } from '@/core/auth/session'
 import { can } from '@/core/permissions/matrix'
 import { PageHeader } from '@/components/feedback/states'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { userRoleLabel } from '@/core/domain/labels'
 import { UserFormDialog } from '@/modules/users/user-form-dialog'
+import { ChangePasswordForm } from '@/modules/account/change-password-form'
 
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Profil' }
@@ -22,9 +23,25 @@ export default async function ProfilePage() {
         <Card>
           <CardHeader><CardTitle>{session.user.name}</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
+            {session.user.username ? (
+              <div><span className="text-muted-foreground">Benutzername:</span> {session.user.username}</div>
+            ) : null}
             <div><span className="text-muted-foreground">E-Mail:</span> {session.user.email}</div>
             <div><span className="text-muted-foreground">Rolle:</span> {userRoleLabel[session.user.role]}</div>
             <div><span className="text-muted-foreground">Aktive Rechte:</span> {session.user.effectivePermissions.length}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <KeyRound className="h-4 w-4 text-primary" aria-hidden />
+              Passwort ändern
+            </CardTitle>
+            <CardDescription>Aktualisieren Sie Ihr persönliches Login-Passwort.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChangePasswordForm />
           </CardContent>
         </Card>
 

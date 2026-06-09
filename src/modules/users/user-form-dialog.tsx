@@ -24,9 +24,11 @@ const ASSIGNABLE_ROLES: UserRole[] = [
 function initialForm(user?: User): UserFormInput {
   return {
     name: user?.name ?? '',
+    username: user?.username ?? '',
     email: user?.email ?? '',
     role: user?.role ?? 'mitarbeiter',
     active: user?.active ?? true,
+    password: '',
   }
 }
 
@@ -80,9 +82,31 @@ export function UserFormDialog({ user }: { user?: User }) {
             <Label>Name *</Label>
             <Input value={form.name} placeholder="Vor- und Nachname" onChange={e => setForm({ ...form, name: e.target.value })} />
           </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label>Benutzername *</Label>
+              <Input
+                value={form.username}
+                autoCapitalize="none"
+                spellCheck={false}
+                placeholder="z. B. m.mustermann"
+                onChange={e => setForm({ ...form, username: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>E-Mail *</Label>
+              <Input type="email" value={form.email} placeholder="name@pflegenest-bochum.de" onChange={e => setForm({ ...form, email: e.target.value })} />
+            </div>
+          </div>
           <div className="space-y-1">
-            <Label>E-Mail *</Label>
-            <Input type="email" value={form.email} placeholder="name@pflegenest-bochum.de" onChange={e => setForm({ ...form, email: e.target.value })} />
+            <Label>{isEdit ? 'Neues Passwort' : 'Passwort *'}</Label>
+            <Input
+              type="password"
+              value={form.password ?? ''}
+              autoComplete="new-password"
+              placeholder={isEdit ? 'Leer lassen = unverändert' : 'Mind. 8 Zeichen, Buchstaben & Zahlen'}
+              onChange={e => setForm({ ...form, password: e.target.value })}
+            />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
@@ -109,7 +133,16 @@ export function UserFormDialog({ user }: { user?: User }) {
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Abbrechen</Button>
-          <Button disabled={pending || !form.name.trim() || !form.email.trim()} onClick={submit}>
+          <Button
+            disabled={
+              pending ||
+              !form.name.trim() ||
+              !form.username.trim() ||
+              !form.email.trim() ||
+              (!isEdit && !(form.password ?? '').trim())
+            }
+            onClick={submit}
+          >
             {pending ? 'Speichert…' : isEdit ? 'Speichern' : 'Anlegen'}
           </Button>
         </DialogFooter>

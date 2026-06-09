@@ -18,6 +18,7 @@ export function UsersTable({
 }) {
   const cols: DataTableColumn<User>[] = [
     { id: 'name', header: 'Name', sortKey: 'name', cell: u => <span className="font-medium">{u.name}</span> },
+    { id: 'username', header: 'Benutzername', sortKey: 'username', cell: u => <span className="font-mono text-xs">{u.username ?? '—'}</span> },
     { id: 'email', header: 'E-Mail', sortKey: 'email', cell: u => <span className="text-xs text-muted-foreground">{u.email}</span> },
     { id: 'role', header: 'Rolle', sortKey: 'role', cell: u => <Badge variant="info">{userRoleLabel[u.role]}</Badge> },
     { id: 'active', header: 'Aktiv', cell: u => u.active ? <Badge variant="success">Aktiv</Badge> : <Badge variant="muted">Inaktiv</Badge> },
@@ -32,5 +33,5 @@ export function UsersTable({
         } satisfies DataTableColumn<User>]
       : []),
   ]
-  return <DataTable data={data} columns={cols} searchableFields={['name', 'email']} emptyTitle="Keine Benutzer" />
+  return <DataTable data={data} columns={cols} searchableFields={['name', 'email', 'username']} emptyTitle="Keine Benutzer" />
 }
