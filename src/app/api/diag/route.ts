@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { repos } from '@/core/repositories'
 import { bootstrap } from '@/core/bootstrap'
+import { submitContactForm } from '@/app/actions/leads'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,6 +10,28 @@ export async function GET() {
   await bootstrap()
   const out: Record<string, unknown> = {}
   try {
+    // Exercise the REAL website contact-form action and confirm it lands in the
+    // store the admin panel reads from, then clean the throwaway record up.
+    const marker = `diag+${Date.now()}@example.com`
+    const res = await submitContactForm({
+      firstName: 'Diag',
+      lastName: 'Webform',
+      email: marker,
+      phone: '0234123456',
+      zip: '44789',
+      city: 'Bochum',
+      message: 'Automatischer Diagnose-Test der Kontaktformular-Persistenz.',
+      consent: true,
+    })
+    const found = (await repos.leads.findMany(l => l.email === marker))[0]
+    out.contact_form_action_ok = Boolean(res.ok && found)
+    out.contact_form_visible_in_store = Boolean(found)
+    if (found) {
+      await repos.leads.delete(found.id)
+      const consents = await repos.consentRecords.findMany(c => c.subjectId === found.id)
+      for (const c of consents) await repos.consentRecords.delete(c.id)
+    }
+
     // create → read back → delete a throwaway lead through the normal repo path
     const created = await repos.leads.create({
       firstName: 'Diag',
